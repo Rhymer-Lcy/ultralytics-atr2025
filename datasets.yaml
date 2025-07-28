@@ -1,0 +1,16 @@
+# Ultralytics YOLO dataset config
+
+train: datasets/train/images    # train images
+# train: /abs/path/to/train/images
+
+val: datasets/val/images        # val images
+# val: /abs/path/to/val/images
+
+test: datasets/test/images      # test images (optional)
+# test: /abs/path/to/test/images
+
+nc: 11                         # number of classes
+
+names: ['car', 'suv', 'van', 'bus', 'freight_car', 'truck', 'tank_truck', 'trailer', 'crane', 'excavator', 'motorcycle']  # class names
+
+# Relative or absolute paths are supported
