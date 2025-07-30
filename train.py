@@ -10,7 +10,7 @@ if __name__ == '__main__':
         data='datasets.yaml',    # dataset yaml path
         epochs=200,              # training epochs
         batch=16,                # batch size
-        imgsz=(640, 512),               # image size, match input width
+        imgsz=(640, 512),        # image size, match input width
         workers=8,               # dataloader workers
         device=0,                # GPU device id
         optimizer='SGD',         # optimizer type
