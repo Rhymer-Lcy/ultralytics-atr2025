@@ -47,7 +47,7 @@ MACOS, LINUX, WINDOWS = (platform.system() == x for x in ["Darwin", "Linux", "Wi
 MACOS_VERSION = platform.mac_ver()[0] if MACOS else None
 ARM64 = platform.machine() in {"arm64", "aarch64"}  # ARM64 booleans
 PYTHON_VERSION = platform.python_version()
-TORCH_VERSION = torch.__version__
+TORCH_VERSION = str(torch.__version__)  # torch.__version__
 TORCHVISION_VERSION = importlib.metadata.version("torchvision")  # faster than importing torchvision
 IS_VSCODE = os.environ.get("TERM_PROGRAM", False) == "vscode"
 RKNN_CHIPS = frozenset(

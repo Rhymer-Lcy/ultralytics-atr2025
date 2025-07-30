@@ -4,7 +4,7 @@ from ultralytics import YOLO
 
 if __name__ == '__main__':
     model = YOLO('ultralytics/cfg/models/11/yolo11m.yaml')  # model config path
-    # model.load('yolo11m.pt')  # load pretrained weights if needed
+    model.load('weights/yolo11m.pt')  # load pretrained weights if needed
     results = model.train(
         data='datasets.yaml',    # dataset yaml path
         epochs=200,              # training epochs
