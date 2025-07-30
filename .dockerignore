@@ -30,6 +30,8 @@ ENV/
 *.log
 benchmarks.log
 runs/
+sahi_predict/
+sahi_val/
 
 # Dependencies
 node_modules/
