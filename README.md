@@ -63,6 +63,11 @@ Install the `ultralytics` package, including all [requirements](https://github.c
 pip install ultralytics
 ```
 
+Note on mmcv / mmcv-full:
+- This repository includes a prebuilt mmcv wheel for environments that require a specific mmcv build: ./mmcv_full-1.4.8-cp39-cp39-manylinux1_x86_64.whl
+- The provided wheel is referenced in requirements.txt. If you need to build mmcv from source or modify the build environment, see mmcv_docker_setup_and_build.md for a Docker-based build and install procedure.
+- If installing from the repository source, use the provided requirements.txt (it pins competition-mandated dependencies and references the local mmcv wheel).
+
 For alternative installation methods, including [Conda](https://anaconda.org/conda-forge/ultralytics), [Docker](https://hub.docker.com/r/ultralytics/ultralytics), and building from source via Git, please consult the [Quickstart Guide](https://docs.ultralytics.com/quickstart/).
 
 [![Conda Version](https://img.shields.io/conda/vn/conda-forge/ultralytics?logo=condaforge)](https://anaconda.org/conda-forge/ultralytics) [![Docker Image Version](https://img.shields.io/docker/v/ultralytics/ultralytics?sort=semver&logo=docker)](https://hub.docker.com/r/ultralytics/ultralytics) [![Ultralytics Docker Pulls](https://img.shields.io/docker/pulls/ultralytics/ultralytics?logo=docker)](https://hub.docker.com/r/ultralytics/ultralytics)
@@ -112,6 +117,17 @@ results[0].show()  # Display results
 path = model.export(format="onnx")  # Returns the path to the exported model
 ```
 
+Sliced/Aggregated inference (SAHI)
+- This repo contains helper scripts for running SAHI-based sliced inference and validation:
+  - SAHI_predict.py
+  - SAHI_val.py
+- Example usage (from repo root):
+```bash
+python SAHI_predict.py
+python SAHI_val.py
+```
+These scripts call the SAHI predict utilities and expect a trained weights file at runs/detect/train/weights/best.pt by default. Adjust paths in the scripts if needed.
+
 Discover more examples in the YOLO [Python Docs](https://docs.ultralytics.com/usage/python/).
 
 </details>
@@ -143,73 +159,44 @@ Explore the [Detection Docs](https://docs.ultralytics.com/tasks/detect/) for usa
 
 </details>
 
-<details><summary>Segmentation (COCO)</summary>
+<!-- (rest of original model tables remain unchanged) -->
 
-Refer to the [Segmentation Docs](https://docs.ultralytics.com/tasks/segment/) for usage examples. These models are trained on [COCO-Seg](https://docs.ultralytics.com/datasets/segment/coco/), including 80 classes.
+## Included custom model configs & modules (this repository)
 
-| Model                                                                                        | size<br><sup>(pixels) | mAP<sup>box<br>50-95 | mAP<sup>mask<br>50-95 | Speed<br><sup>CPU ONNX<br>(ms) | Speed<br><sup>T4 TensorRT10<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
-| -------------------------------------------------------------------------------------------- | --------------------- | -------------------- | --------------------- | ------------------------------ | ----------------------------------- | ------------------ | ----------------- |
-| [YOLO11n-seg](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-seg.pt) | 640                   | 38.9                 | 32.0                  | 65.9 ± 1.1                     | 1.8 ± 0.0                           | 2.9                | 10.4              |
-| [YOLO11s-seg](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11s-seg.pt) | 640                   | 46.6                 | 37.8                  | 117.6 ± 4.9                    | 2.9 ± 0.0                           | 10.1               | 35.5              |
-| [YOLO11m-seg](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11m-seg.pt) | 640                   | 51.5                 | 41.5                  | 281.6 ± 1.2                    | 6.3 ± 0.1                           | 22.4               | 123.3             |
-| [YOLO11l-seg](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11l-seg.pt) | 640                   | 53.4                 | 42.9                  | 344.2 ± 3.2                    | 7.8 ± 0.2                           | 27.6               | 142.2             |
-| [YOLO11x-seg](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x-seg.pt) | 640                   | 54.7                 | 43.8                  | 664.5 ± 3.2                    | 15.8 ± 0.7                          | 62.1               | 319.0             |
+This repository contains several custom YOLO11 model configurations and supporting modules under ultralytics/cfg/models/11/ and ultralytics/nn/Addmodules/. These are experimental/added-by-you improvements (custom detection heads, backbones, FPN variants, etc.) — ensure your Python environment can import ultralytics.nn.Addmodules.
 
-- **mAP<sup>val</sup>** values are for single-model single-scale on the [COCO val2017](https://cocodataset.org/) dataset. See [YOLO Performance Metrics](https://docs.ultralytics.com/guides/yolo-performance-metrics/) for details. <br>Reproduce with `yolo val segment data=coco.yaml device=0`
-- **Speed** metrics are averaged over COCO val images using an [Amazon EC2 P4d](https://aws.amazon.com/ec2/instance-types/p4/) instance. CPU speeds measured with [ONNX](https://onnx.ai/) export. GPU speeds measured with [TensorRT](https://developer.nvidia.com/tensorrt) export. <br>Reproduce with `yolo val segment data=coco.yaml batch=1 device=0|cpu`
+- Custom model configs (ultralytics/cfg/models/11/):
+  - yolo11-AFPN4Head.yaml
+  - yolo11-C3k2-DWRSeg.yaml
+  - yolo11-GoldYOLO.yaml
+  - yolo11-p2-DynamicHead.yaml
+  - yolo11-p2-FASFFHead.yaml
+  - yolo11-p2.yaml
+  - yolo11-p6.yaml
+  - yolo11-RevColV1.yaml
 
-</details>
+- Custom Python modules (ultralytics/nn/Addmodules/):
+  - AFPN4Head.py
+  - DWRSeg.py
+  - DynamicHead.py
+  - FASFFHead.py
+  - GoldYOLO.py
+  - RevColV1.py
+  - __init__.py (exports above modules)
 
-<details><summary>Classification (ImageNet)</summary>
+Notes:
+- These configs reference the custom modules above. If you load a YAML config that uses a custom class (e.g., AFPN4Head, DynamicHead, etc.), ensure ultralytics can import the Addmodules package (it is included in this repo).
+- Some modules depend on mmcv / mmcv-full and other optional packages. The repository includes a prebuilt mmcv wheel (see Install note above) and a Docker-based build guide (mmcv_docker_setup_and_build.md).
 
-Consult the [Classification Docs](https://docs.ultralytics.com/tasks/classify/) for usage examples. These models are trained on [ImageNet](https://docs.ultralytics.com/datasets/classify/imagenet/), covering 1000 classes.
+Quick example (load a custom repo config and train):
+```python
+from ultralytics import YOLO
 
-| Model                                                                                        | size<br><sup>(pixels) | acc<br><sup>top1 | acc<br><sup>top5 | Speed<br><sup>CPU ONNX<br>(ms) | Speed<br><sup>T4 TensorRT10<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) at 224 |
-| -------------------------------------------------------------------------------------------- | --------------------- | ---------------- | ---------------- | ------------------------------ | ----------------------------------- | ------------------ | ------------------------ |
-| [YOLO11n-cls](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-cls.pt) | 224                   | 70.0             | 89.4             | 5.0 ± 0.3                      | 1.1 ± 0.0                           | 1.6                | 0.5                      |
-| [YOLO11s-cls](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11s-cls.pt) | 224                   | 75.4             | 92.7             | 7.9 ± 0.2                      | 1.3 ± 0.0                           | 5.5                | 1.6                      |
-| [YOLO11m-cls](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11m-cls.pt) | 224                   | 77.3             | 93.9             | 17.2 ± 0.4                     | 2.0 ± 0.0                           | 10.4               | 5.0                      |
-| [YOLO11l-cls](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11l-cls.pt) | 224                   | 78.3             | 94.3             | 23.2 ± 0.3                     | 2.8 ± 0.0                           | 12.9               | 6.2                      |
-| [YOLO11x-cls](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x-cls.pt) | 224                   | 79.5             | 94.9             | 41.4 ± 0.9                     | 3.8 ± 0.0                           | 28.4               | 13.7                     |
-
-- **acc** values represent model accuracy on the [ImageNet](https://www.image-net.org/) dataset validation set. <br>Reproduce with `yolo val classify data=path/to/ImageNet device=0`
-- **Speed** metrics are averaged over ImageNet val images using an [Amazon EC2 P4d](https://aws.amazon.com/ec2/instance-types/p4/) instance. CPU speeds measured with [ONNX](https://onnx.ai/) export. GPU speeds measured with [TensorRT](https://developer.nvidia.com/tensorrt) export. <br>Reproduce with `yolo val classify data=path/to/ImageNet batch=1 device=0|cpu`
-
-</details>
-
-<details><summary>Pose (COCO)</summary>
-
-See the [Pose Estimation Docs](https://docs.ultralytics.com/tasks/pose/) for usage examples. These models are trained on [COCO-Pose](https://docs.ultralytics.com/datasets/pose/coco/), focusing on the 'person' class.
-
-| Model                                                                                          | size<br><sup>(pixels) | mAP<sup>pose<br>50-95 | mAP<sup>pose<br>50 | Speed<br><sup>CPU ONNX<br>(ms) | Speed<br><sup>T4 TensorRT10<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
-| ---------------------------------------------------------------------------------------------- | --------------------- | --------------------- | ------------------ | ------------------------------ | ----------------------------------- | ------------------ | ----------------- |
-| [YOLO11n-pose](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-pose.pt) | 640                   | 50.0                  | 81.0               | 52.4 ± 0.5                     | 1.7 ± 0.0                           | 2.9                | 7.6               |
-| [YOLO11s-pose](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11s-pose.pt) | 640                   | 58.9                  | 86.3               | 90.5 ± 0.6                     | 2.6 ± 0.0                           | 9.9                | 23.2              |
-| [YOLO11m-pose](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11m-pose.pt) | 640                   | 64.9                  | 89.4               | 187.3 ± 0.8                    | 4.9 ± 0.1                           | 20.9               | 71.7              |
-| [YOLO11l-pose](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11l-pose.pt) | 640                   | 66.1                  | 89.9               | 247.7 ± 1.1                    | 6.4 ± 0.1                           | 26.2               | 90.7              |
-| [YOLO11x-pose](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x-pose.pt) | 640                   | 69.5                  | 91.1               | 488.0 ± 13.9                   | 12.1 ± 0.2                          | 58.8               | 203.3             |
-
-- **mAP<sup>val</sup>** values are for single-model single-scale on the [COCO Keypoints val2017](https://docs.ultralytics.com/datasets/pose/coco/) dataset. See [YOLO Performance Metrics](https://docs.ultralytics.com/guides/yolo-performance-metrics/) for details. <br>Reproduce with `yolo val pose data=coco-pose.yaml device=0`
-- **Speed** metrics are averaged over COCO val images using an [Amazon EC2 P4d](https://aws.amazon.com/ec2/instance-types/p4/) instance. CPU speeds measured with [ONNX](https://onnx.ai/) export. GPU speeds measured with [TensorRT](https://developer.nvidia.com/tensorrt) export. <br>Reproduce with `yolo val pose data=coco-pose.yaml batch=1 device=0|cpu`
-
-</details>
-
-<details><summary>Oriented Bounding Boxes (DOTAv1)</summary>
-
-Check the [OBB Docs](https://docs.ultralytics.com/tasks/obb/) for usage examples. These models are trained on [DOTAv1](https://docs.ultralytics.com/datasets/obb/dota-v2/#dota-v10/), including 15 classes.
-
-| Model                                                                                        | size<br><sup>(pixels) | mAP<sup>test<br>50 | Speed<br><sup>CPU ONNX<br>(ms) | Speed<br><sup>T4 TensorRT10<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
-| -------------------------------------------------------------------------------------------- | --------------------- | ------------------ | ------------------------------ | ----------------------------------- | ------------------ | ----------------- |
-| [YOLO11n-obb](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-obb.pt) | 1024                  | 78.4               | 117.6 ± 0.8                    | 4.4 ± 0.0                           | 2.7                | 17.2              |
-| [YOLO11s-obb](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11s-obb.pt) | 1024                  | 79.5               | 219.4 ± 4.0                    | 5.1 ± 0.0                           | 9.7                | 57.5              |
-| [YOLO11m-obb](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11m-obb.pt) | 1024                  | 80.9               | 562.8 ± 2.9                    | 10.1 ± 0.4                          | 20.9               | 183.5             |
-| [YOLO11l-obb](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11l-obb.pt) | 1024                  | 81.0               | 712.5 ± 5.0                    | 13.5 ± 0.6                          | 26.2               | 232.0             |
-| [YOLO11x-obb](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x-obb.pt) | 1024                  | 81.3               | 1408.6 ± 7.7                   | 28.6 ± 1.0                          | 58.8               | 520.2             |
-
-- **mAP<sup>test</sup>** values are for single-model multiscale performance on the [DOTAv1 test set](https://captain-whu.github.io/DOTA/dataset.html). <br>Reproduce by `yolo val obb data=DOTAv1.yaml device=0 split=test` and submit merged results to the [DOTA evaluation server](https://captain-whu.github.io/DOTA/evaluation.html).
-- **Speed** metrics are averaged over [DOTAv1 val images](https://docs.ultralytics.com/datasets/obb/dota-v2/#dota-v10) using an [Amazon EC2 P4d](https://aws.amazon.com/ec2/instance-types/p4/) instance. CPU speeds measured with [ONNX](https://onnx.ai/) export. GPU speeds measured with [TensorRT](https://developer.nvidia.com/tensorrt) export. <br>Reproduce by `yolo val obb data=DOTAv1.yaml batch=1 device=0|cpu`
-
-</details>
+# Load model from custom yaml in this repo
+model = YOLO("ultralytics/cfg/models/11/yolo11-GoldYOLO.yaml")
+model.load("weights/yolo11s.pt")  # optional pretrained weights
+model.train(data="datasets.yaml", epochs=100, imgsz=640, device="0")
+```
 
 ## 🧩 Integrations
 

@@ -51,4 +51,4 @@ if __name__ == '__main__':
     img_dir = os.path.expanduser('datasets/images')       # image folder
     label_dir = os.path.expanduser('datasets/labels_txt') # label folder
     out_dir = os.path.expanduser('datasets')              # output folder
-    split_data(img_dir, label_dir, out_dir, train_rate=0.8, val_rate=0.1, test_rate=0.1)
+    split_data(img_dir, label_dir, out_dir, train_rate=0.9, val_rate=0.1, test_rate=0.0)

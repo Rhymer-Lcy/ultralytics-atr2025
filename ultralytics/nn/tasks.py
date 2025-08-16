@@ -1,5 +1,6 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
+from .Addmodules import *
 import contextlib
 import pickle
 import re
@@ -170,20 +171,46 @@ class BaseModel(torch.nn.Module):
             (torch.Tensor): The last output of the model.
         """
         y, dt, embeddings = [], [], []  # outputs
-        embed = frozenset(embed) if embed is not None else {-1}
-        max_idx = max(embed)
         for m in self.model:
             if m.f != -1:  # if not from previous layer
                 x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
             if profile:
                 self._profile_one_layer(m, x, dt)
-            x = m(x)  # run
-            y.append(x if m.i in self.save else None)  # save output
+            if hasattr(m, 'backbone'):
+                try:
+                    if m.input_nums > 1:
+                        # input nums more than one
+                        x = m(*x)  # run
+                    else:
+                        x = m(x)
+                except AttributeError:
+                    # AttributeError: 'Conv' object has no attribute 'input_nums'
+                    x = m(x)
+                if len(x) != 5:  # 0 - 5
+                    x.insert(0, None)
+                for index, i in enumerate(x):
+                    if index in self.save:
+                        y.append(i)
+                    else:
+                        y.append(None)
+                x = x[-1]  # 最后一个输出传给下一层
+            else:
+                try:
+                    if m.input_nums > 1:
+                        # input nums more than one
+                        x = m(*x)  # run
+                    else:
+                        x = m(x)
+                except AttributeError:
+                    # AttributeError: 'Conv' object has no attribute 'input_nums'
+                    x = m(x)
+                y.append(x if m.i in self.save else None)  # save output
+
             if visualize:
                 feature_visualization(x, m.type, m.i, save_dir=visualize)
-            if m.i in embed:
-                embeddings.append(torch.nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
-                if m.i == max_idx:
+            if embed and m.i in embed:
+                embeddings.append(nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
+                if m.i == max(embed):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
         return x
 
@@ -292,7 +319,7 @@ class BaseModel(torch.nn.Module):
         self = super()._apply(fn)
         m = self.model[-1]  # Detect()
         if isinstance(
-            m, Detect
+            m, (Detect, AFPN4Head, DynamicHead, FASFFHead)
         ):  # includes all Detect subclasses like Segment, Pose, OBB, WorldDetect, YOLOEDetect, YOLOESegment
             m.stride = fn(m.stride)
             m.anchors = fn(m.anchors)
@@ -404,7 +431,7 @@ class DetectionModel(BaseModel):
 
         # Build strides
         m = self.model[-1]  # Detect()
-        if isinstance(m, Detect):  # includes all Detect subclasses like Segment, Pose, OBB, YOLOEDetect, YOLOESegment
+        if isinstance(m, (Detect, AFPN4Head, DynamicHead, FASFFHead)):  # includes all Detect subclasses like Segment, Pose, OBB, YOLOEDetect, YOLOESegment
             s = 256  # 2x min stride
             m.inplace = self.inplace
 
@@ -1586,7 +1613,9 @@ def parse_model(d, ch, verbose=True):
         save (list): Sorted list of output layers.
     """
     import ast
-
+    from .modules.conv import CBAM
+    globals()['CBAM'] = CBAM
+    
     # Args
     legacy = True  # backward compatibility for v3/v5/v8/v9 models
     max_channels = float("inf")
@@ -1608,6 +1637,8 @@ def parse_model(d, ch, verbose=True):
         LOGGER.info(f"\n{'':>3}{'from':>20}{'n':>3}{'params':>10}  {'module':<45}{'arguments':<30}")
     ch = [ch]
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
+    backbone = False  # 主干开关
+    goldyolo = False  # GoldYOLO开关
     base_modules = frozenset(
         {
             Classify,
@@ -1644,6 +1675,7 @@ def parse_model(d, ch, verbose=True):
             SCDown,
             C2fCIB,
             A2C2f,
+            C3k2_DWRSeg,
         }
     )
     repeat_modules = frozenset(  # modules with 'repeat' arguments
@@ -1663,9 +1695,11 @@ def parse_model(d, ch, verbose=True):
             C2fCIB,
             C2PSA,
             A2C2f,
+            C3k2_DWRSeg,
         }
     )
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
+        t = m
         m = (
             getattr(torch.nn, m[3:])
             if "nn." in m
@@ -1700,6 +1734,14 @@ def parse_model(d, ch, verbose=True):
                     args.extend((True, 1.2))
             if m is C2fCIB:
                 legacy = False
+        # start 主干网络下面的代码为自己手动添加,源代码中不包含, 字典中包含了所有的主干版本,根据你自己需要的模型添加对应的版本即可.
+        elif m in {
+                    revcol_tiny, revcol_base, revcol_small, revcol_large, revcol_xlarge
+        }:
+            m = m(*args)
+            c2 = m.width_list  # 返回通道列表
+            backbone = True
+        # end
         elif m is AIFI:
             args = [ch[f], *args]
         elif m in frozenset({HGStem, HGBlock}):
@@ -1708,6 +1750,49 @@ def parse_model(d, ch, verbose=True):
             if m is HGBlock:
                 args.insert(4, n)  # number of repeats
                 n = 1
+        # --------------GOLD-YOLO--------------
+        elif m in (nn.Conv2d, SimConv):
+            c1, c2 = ch[f], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(c2 * width, 8)
+            args = [c1, c2, *args[1:]]
+        elif m in (High_IFM, ):
+            c2 = args[1]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(c2 * width, 8)
+            args = [args[0], c2, *args[2:]]
+        elif m in (Low_FAM, High_FAM, High_LAF):
+            c2 = sum(ch[x] for x in f)
+        elif m is Low_IFM:
+            c1, c2 = ch[f], args[2]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            args = [c1, *args[:-1], c2]
+        elif m is Low_LAF:
+            c1, c2 = ch[f[1]], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            args = [c1, c2, *args[1:]]
+        elif m is Inject:
+            global_index = args[1]
+            c1, c2 = ch[f[1]][global_index], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            args = [c1, c2, global_index]
+        elif m is RepBlock:
+            c1, c2 = ch[f], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            nums_repeat = max(round(args[1] * depth), 1) if args[1] > 1 else args[1]  # depth gain
+            args = [c1, c2, nums_repeat]
+        elif m is Split:
+            goldyolo = True
+            c2 = []
+            for arg in args:
+                if arg != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                    c2.append(make_divisible(min(arg, max_channels) * width, 8))
+            args = [c2]
+        # --------------GOLD-YOLO--------------
         elif m is ResNetLayer:
             c2 = args[1] if args[3] else args[1] * 4
         elif m is torch.nn.BatchNorm2d:
@@ -1715,7 +1800,7 @@ def parse_model(d, ch, verbose=True):
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
         elif m in frozenset(
-            {Detect, WorldDetect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB, ImagePoolingAttn, v10Detect}
+            {Detect, WorldDetect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB, ImagePoolingAttn, v10Detect, AFPN4Head, DynamicHead, FASFFHead}
         ):
             args.append([ch[x] for x in f])
             if m is Segment or m is YOLOESegment:
@@ -1737,17 +1822,36 @@ def parse_model(d, ch, verbose=True):
         else:
             c2 = ch[f]
 
-        m_ = torch.nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-        t = str(m)[8:-2].replace("__main__.", "")  # module type
-        m_.np = sum(x.numel() for x in m_.parameters())  # number params
-        m_.i, m_.f, m_.type = i, f, t  # attach index, 'from' index, type
+        if isinstance(c2, list) and not goldyolo:
+            m_ = m
+            m_.backbone = True
+        else:
+            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
+            t = str(m)[8:-2].replace('__main__.', '')  # module type
+
+        m.np = sum(x.numel() for x in m_.parameters())  # number params
+        m_.i, m_.f, m_.type = i + 4 if backbone else i, f, t  # attach index, 'from' index, type
+
+        if m in [Inject, High_LAF]:
+            # input nums
+            m_.input_nums = len(f)
+        else:
+            m_.input_nums = 1
+
         if verbose:
-            LOGGER.info(f"{i:>3}{str(f):>20}{n_:>3}{m_.np:10.0f}  {t:<45}{str(args):<30}")  # print
-        save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
+            LOGGER.info(f'{i:>3}{str(f):>20}{n_:>3}{m.np:10.0f}  {t:<45}{str(args):<30}')  # print
+
+        save.extend(
+            x % (i + 4 if backbone else i) for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
         layers.append(m_)
         if i == 0:
             ch = []
-        ch.append(c2)
+        if isinstance(c2, list) and not goldyolo:
+            ch.extend(c2)
+            if len(c2) != 5:
+                ch.insert(0, 0)
+        else:
+            ch.append(c2)
     return torch.nn.Sequential(*layers), sorted(save)
 
 
@@ -1815,6 +1919,8 @@ def guess_model_task(model):
             return "pose"
         if m == "obb":
             return "obb"
+        else:
+            return 'detect'
 
     # Guess from model cfg
     if isinstance(model, dict):
@@ -1837,7 +1943,7 @@ def guess_model_task(model):
                 return "pose"
             elif isinstance(m, OBB):
                 return "obb"
-            elif isinstance(m, (Detect, WorldDetect, YOLOEDetect, v10Detect)):
+            elif isinstance(m, (Detect, WorldDetect, YOLOEDetect, v10Detect, AFPN4Head, DynamicHead. FASFFHead)):
                 return "detect"
 
     # Guess from model filename

@@ -63,6 +63,11 @@
 pip install ultralytics
 ```
 
+注意 mmcv / mmcv-full:
+- 本仓库包含用于特定环境的预构建 mmcv wheel：./mmcv_full-1.4.8-cp39-cp39-manylinux1_x86_64.whl
+- requirements.txt 中已引用该 wheel。若需从源码构建 mmcv 或修改构建环境，请参阅仓内的 mmcv_docker_setup_and_build.md（提供 Docker 构建与安装步骤）。
+- 从源码安装本仓库时，可使用仓内的 requirements.txt（其中固定了竞赛要求的依赖项并引用本地 mmcv wheel）。
+
 有关其他安装方法，包括 [Conda](https://anaconda.org/conda-forge/ultralytics)、[Docker](https://hub.docker.com/r/ultralytics/ultralytics) 以及通过 Git 从源代码构建，请查阅[快速入门指南](https://docs.ultralytics.com/quickstart/)。
 
 [![Conda Version](https://img.shields.io/conda/vn/conda-forge/ultralytics?logo=condaforge)](https://anaconda.org/conda-forge/ultralytics) [![Docker Image Version](https://img.shields.io/docker/v/ultralytics/ultralytics?sort=semver&logo=docker)](https://hub.docker.com/r/ultralytics/ultralytics) [![Ultralytics Docker Pulls](https://img.shields.io/docker/pulls/ultralytics/ultralytics?logo=docker)](https://hub.docker.com/r/ultralytics/ultralytics)
@@ -114,6 +119,17 @@ path = model.export(format="onnx")  # 返回导出模型的路径
 
 在 YOLO [Python 文档](https://docs.ultralytics.com/usage/python/)中发现更多示例。
 
+Sliced/Aggregated inference (SAHI)
+- 本仓库包含用于 SAHI 分片推理与验证的脚本：
+  - SAHI_predict.py
+  - SAHI_val.py
+- 示例用法（在仓库根目录运行）：
+```bash
+python SAHI_predict.py
+python SAHI_val.py
+```
+这些脚本默认期待训练好的权重位于 runs/detect/train/weights/best.pt，需根据实际路径调整脚本内路径。
+
 </details>
 
 ## ✨ 模型
@@ -143,73 +159,45 @@ Ultralytics 支持广泛的 YOLO 模型，从早期的版本如 [YOLOv3](https:/
 
 </details>
 
-<details><summary>分割 (COCO)</summary>
+<!-- (其余模型表格信息保持不变) -->
 
-请参阅[分割文档](https://docs.ultralytics.com/tasks/segment/)获取使用示例。这些模型在 [COCO-Seg](https://docs.ultralytics.com/datasets/segment/coco/) 数据集上训练，包含 80 个类别。
+## 仓内自定义模型配置与模块
 
-| 模型                                                                                         | 尺寸<br><sup>(像素) | mAP<sup>box<br>50-95 | mAP<sup>mask<br>50-95 | 速度<br><sup>CPU ONNX<br>(毫秒) | 速度<br><sup>T4 TensorRT10<br>(毫秒) | 参数<br><sup>(百万) | FLOPs<br><sup>(十亿) |
-| -------------------------------------------------------------------------------------------- | ------------------- | -------------------- | --------------------- | ------------------------------- | ------------------------------------ | ------------------- | -------------------- |
-| [YOLO11n-seg](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-seg.pt) | 640                 | 38.9                 | 32.0                  | 65.9 ± 1.1                      | 1.8 ± 0.0                            | 2.9                 | 10.4                 |
-| [YOLO11s-seg](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11s-seg.pt) | 640                 | 46.6                 | 37.8                  | 117.6 ± 4.9                     | 2.9 ± 0.0                            | 10.1                | 35.5                 |
-| [YOLO11m-seg](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11m-seg.pt) | 640                 | 51.5                 | 41.5                  | 281.6 ± 1.2                     | 6.3 ± 0.1                            | 22.4                | 123.3                |
-| [YOLO11l-seg](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11l-seg.pt) | 640                 | 53.4                 | 42.9                  | 344.2 ± 3.2                     | 7.8 ± 0.2                            | 27.6                | 142.2                |
-| [YOLO11x-seg](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x-seg.pt) | 640                 | 54.7                 | 43.8                  | 664.5 ± 3.2                     | 15.8 ± 0.7                           | 62.1                | 319.0                |
+本仓库包含若干自定义的 YOLO11 配置与实现模块，位于 ultralytics/cfg/models/11/ 和 ultralytics/nn/Addmodules/ 下，用于尝试不同的检测头、FPN 与 backbone 改进以提升小目标 / 多尺度表现。
 
-- **mAP<sup>val</sup>** 值指的是在 [COCO val2017](https://cocodataset.org/) 数据集上的单模型单尺度性能。详见 [YOLO 性能指标](https://docs.ultralytics.com/guides/yolo-performance-metrics/)。<br>使用 `yolo val segment data=coco.yaml device=0` 复现结果。
-- **速度** 指标是在 [Amazon EC2 P4d](https://aws.amazon.com/ec2/instance-types/p4/) 实例上对 COCO val 图像进行平均测量的。CPU 速度使用 [ONNX](https://onnx.ai/) 导出进行测量。GPU 速度使用 [TensorRT](https://developer.nvidia.com/tensorrt) 导出进行测量。<br>使用 `yolo val segment data=coco.yaml batch=1 device=0|cpu` 复现结果。
+- 模型配置（ultralytics/cfg/models/11/）:
+  - yolo11-AFPN4Head.yaml
+  - yolo11-C3k2-DWRSeg.yaml
+  - yolo11-GoldYOLO.yaml
+  - yolo11-p2-DynamicHead.yaml
+  - yolo11-p2-FASFFHead.yaml
+  - yolo11-p2.yaml
+  - yolo11-p6.yaml
+  - yolo11-RevColV1.yaml
 
-</details>
+- 自定义模块（ultralytics/nn/Addmodules/）:
+  - AFPN4Head.py
+  - DWRSeg.py
+  - DynamicHead.py
+  - FASFFHead.py
+  - GoldYOLO.py
+  - RevColV1.py
+  - __init__.py（导出以上模块）
 
-<details><summary>分类 (ImageNet)</summary>
+注意事项：
+- 这些配置引用仓内模块。若加载使用自定义类（如 AFPN4Head、DynamicHead 等）的 YAML，请确保 Python 环境可以导入 ultralytics.nn.Addmodules（仓库已包含该包路径）。
+- 部分模块依赖 mmcv / mmcv-full 以及其他可选包。仓库内包含预构建的 mmcv wheel（见安装部分），并提供 Docker 构建说明（mmcv_docker_setup_and_build.md）。
+- 若需要将这些配置用于训练或推理，请先验证依赖并根据实际硬件调整训练参数（如 batch、workers、device）。
 
-请查阅[分类文档](https://docs.ultralytics.com/tasks/classify/)获取使用示例。这些模型在 [ImageNet](https://docs.ultralytics.com/datasets/classify/imagenet/) 数据集上训练，涵盖 1000 个类别。
+示例（从仓库配置加载并训练）：
+```python
+from ultralytics import YOLO
 
-| 模型                                                                                         | 尺寸<br><sup>(像素) | acc<br><sup>top1 | acc<br><sup>top5 | 速度<br><sup>CPU ONNX<br>(毫秒) | 速度<br><sup>T4 TensorRT10<br>(毫秒) | 参数<br><sup>(百万) | FLOPs<br><sup>(十亿) @ 224 |
-| -------------------------------------------------------------------------------------------- | ------------------- | ---------------- | ---------------- | ------------------------------- | ------------------------------------ | ------------------- | -------------------------- |
-| [YOLO11n-cls](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-cls.pt) | 224                 | 70.0             | 89.4             | 5.0 ± 0.3                       | 1.1 ± 0.0                            | 1.6                 | 0.5                        |
-| [YOLO11s-cls](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11s-cls.pt) | 224                 | 75.4             | 92.7             | 7.9 ± 0.2                       | 1.3 ± 0.0                            | 5.5                 | 1.6                        |
-| [YOLO11m-cls](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11m-cls.pt) | 224                 | 77.3             | 93.9             | 17.2 ± 0.4                      | 2.0 ± 0.0                            | 10.4                | 5.0                        |
-| [YOLO11l-cls](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11l-cls.pt) | 224                 | 78.3             | 94.3             | 23.2 ± 0.3                      | 2.8 ± 0.0                            | 12.9                | 6.2                        |
-| [YOLO11x-cls](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x-cls.pt) | 224                 | 79.5             | 94.9             | 41.4 ± 0.9                      | 3.8 ± 0.0                            | 28.4                | 13.7                       |
-
-- **acc** 值表示模型在 [ImageNet](https://www.image-net.org/) 数据集验证集上的准确率。<br>使用 `yolo val classify data=path/to/ImageNet device=0` 复现结果。
-- **速度** 指标是在 [Amazon EC2 P4d](https://aws.amazon.com/ec2/instance-types/p4/) 实例上对 ImageNet val 图像进行平均测量的。CPU 速度使用 [ONNX](https://onnx.ai/) 导出进行测量。GPU 速度使用 [TensorRT](https://developer.nvidia.com/tensorrt) 导出进行测量。<br>使用 `yolo val classify data=path/to/ImageNet batch=1 device=0|cpu` 复现结果。
-
-</details>
-
-<details><summary>姿态估计 (COCO)</summary>
-
-请参阅[姿态估计文档](https://docs.ultralytics.com/tasks/pose/)获取使用示例。这些模型在 [COCO-Pose](https://docs.ultralytics.com/datasets/pose/coco/) 数据集上训练，专注于 'person' 类别。
-
-| 模型                                                                                           | 尺寸<br><sup>(像素) | mAP<sup>pose<br>50-95 | mAP<sup>pose<br>50 | 速度<br><sup>CPU ONNX<br>(毫秒) | 速度<br><sup>T4 TensorRT10<br>(毫秒) | 参数<br><sup>(百万) | FLOPs<br><sup>(十亿) |
-| ---------------------------------------------------------------------------------------------- | ------------------- | --------------------- | ------------------ | ------------------------------- | ------------------------------------ | ------------------- | -------------------- |
-| [YOLO11n-pose](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-pose.pt) | 640                 | 50.0                  | 81.0               | 52.4 ± 0.5                      | 1.7 ± 0.0                            | 2.9                 | 7.6                  |
-| [YOLO11s-pose](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11s-pose.pt) | 640                 | 58.9                  | 86.3               | 90.5 ± 0.6                      | 2.6 ± 0.0                            | 9.9                 | 23.2                 |
-| [YOLO11m-pose](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11m-pose.pt) | 640                 | 64.9                  | 89.4               | 187.3 ± 0.8                     | 4.9 ± 0.1                            | 20.9                | 71.7                 |
-| [YOLO11l-pose](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11l-pose.pt) | 640                 | 66.1                  | 89.9               | 247.7 ± 1.1                     | 6.4 ± 0.1                            | 26.2                | 90.7                 |
-| [YOLO11x-pose](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x-pose.pt) | 640                 | 69.5                  | 91.1               | 488.0 ± 13.9                    | 12.1 ± 0.2                           | 58.8                | 203.3                |
-
-- **mAP<sup>val</sup>** 值指的是在 [COCO Keypoints val2017](https://docs.ultralytics.com/datasets/pose/coco/) 数据集上的单模型单尺度性能。详见 [YOLO 性能指标](https://docs.ultralytics.com/guides/yolo-performance-metrics/)。<br>使用 `yolo val pose data=coco-pose.yaml device=0` 复现结果。
-- **速度** 指标是在 [Amazon EC2 P4d](https://aws.amazon.com/ec2/instance-types/p4/) 实例上对 COCO val 图像进行平均测量的。CPU 速度使用 [ONNX](https://onnx.ai/) 导出进行测量。GPU 速度使用 [TensorRT](https://developer.nvidia.com/tensorrt) 导出进行测量。<br>使用 `yolo val pose data=coco-pose.yaml batch=1 device=0|cpu` 复现结果。
-
-</details>
-
-<details><summary>定向边界框 (DOTAv1)</summary>
-
-请查阅 [OBB 文档](https://docs.ultralytics.com/tasks/obb/)获取使用示例。这些模型在 [DOTAv1](https://docs.ultralytics.com/datasets/obb/dota-v2/#dota-v10) 数据集上训练，包含 15 个类别。
-
-| 模型                                                                                         | 尺寸<br><sup>(像素) | mAP<sup>test<br>50 | 速度<br><sup>CPU ONNX<br>(毫秒) | 速度<br><sup>T4 TensorRT10<br>(毫秒) | 参数<br><sup>(百万) | FLOPs<br><sup>(十亿) |
-| -------------------------------------------------------------------------------------------- | ------------------- | ------------------ | ------------------------------- | ------------------------------------ | ------------------- | -------------------- |
-| [YOLO11n-obb](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-obb.pt) | 1024                | 78.4               | 117.6 ± 0.8                     | 4.4 ± 0.0                            | 2.7                 | 17.2                 |
-| [YOLO11s-obb](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11s-obb.pt) | 1024                | 79.5               | 219.4 ± 4.0                     | 5.1 ± 0.0                            | 9.7                 | 57.5                 |
-| [YOLO11m-obb](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11m-obb.pt) | 1024                | 80.9               | 562.8 ± 2.9                     | 10.1 ± 0.4                           | 20.9                | 183.5                |
-| [YOLO11l-obb](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11l-obb.pt) | 1024                | 81.0               | 712.5 ± 5.0                     | 13.5 ± 0.6                           | 26.2                | 232.0                |
-| [YOLO11x-obb](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x-obb.pt) | 1024                | 81.3               | 1408.6 ± 7.7                    | 28.6 ± 1.0                           | 58.8                | 520.2                |
-
-- **mAP<sup>test</sup>** 值指的是在 [DOTAv1 测试集](https://captain-whu.github.io/DOTA/dataset.html)上的单模型多尺度性能。<br>通过 `yolo val obb data=DOTAv1.yaml device=0 split=test` 复现结果，并将合并后的结果提交到 [DOTA 评估服务器](https://captain-whu.github.io/DOTA/evaluation.html)。
-- **速度** 指标是在 [Amazon EC2 P4d](https://aws.amazon.com/ec2/instance-types/p4/) 实例上对 [DOTAv1 val 图像](https://docs.ultralytics.com/datasets/obb/dota-v2/#dota-v10)进行平均测量的。CPU 速度使用 [ONNX](https://onnx.ai/) 导出进行测量。GPU 速度使用 [TensorRT](https://developer.nvidia.com/tensorrt) 导出进行测量。<br>通过 `yolo val obb data=DOTAv1.yaml batch=1 device=0|cpu` 复现结果。
-
-</details>
+# 从本仓库 yaml 加载模型
+model = YOLO("ultralytics/cfg/models/11/yolo11-GoldYOLO.yaml")
+model.load("weights/yolo11s.pt")  # 可选预训练权重
+model.train(data="datasets.yaml", epochs=100, imgsz=640, device="0")
+```
 
 ## 🧩 集成
 

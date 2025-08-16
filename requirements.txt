@@ -1,4 +1,5 @@
 # Competition-mandated dependencies (fixed versions)
+./mmcv_full-1.4.8-cp39-cp39-manylinux1_x86_64.whl
 certifi==2019.11.28
 chardet==3.0.4
 idna==2.8
@@ -8,6 +9,7 @@ pillow==10.0.0
 requests==2.23.0
 sahi==0.11.31
 six==1.14.0
+timm==0.9.12
 typing_extensions==4.7.1
 torch==1.10.0+cu111
 torchvision==0.11.0+cu111

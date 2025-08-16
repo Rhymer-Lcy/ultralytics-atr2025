@@ -143,8 +143,8 @@ dmypy.json
 # datasets and projects (ignore /datasets dir at root only to allow for docs/en/datasets dir)
 /datasets
 runs/
-sahi_predict/
-sahi_val/
+SAHI_predict/
+SAHI_val/
 wandb/
 .DS_Store
 
